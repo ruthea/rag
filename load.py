@@ -1,3 +1,10 @@
+import json
+import boto3
+from cassandra.auth import PlainTextAuthProvider
+from cassandra.cluster import Cluster
+from opensearchpy import OpenSearch, RequestsHttpConnection
+import logging
+
 # Keyspace and table configuration
 KEYSPACE = 'movies'
 TABLE = 'movies'
@@ -56,7 +63,7 @@ MODEL_ID = "amazon.titan-embed-text-v2:0"
 
 def get_embedding_from_titan(text):
     """Get embeddings from Amazon Titan for a given text."""
-    logger.info("Generating embedding for text: %s", text)
+    #logger.info("Generating embedding for text: %s", text)
     request = json.dumps({"inputText": text})
     response = bedrock_client.invoke_model(modelId=MODEL_ID, body=request)
     model_response = json.loads(response["body"].read())
@@ -66,20 +73,28 @@ def create_index_if_not_exists(index_name):
     """Create the index if it doesn't exist."""
     if not opensearch_client.indices.exists(index=index_name):
         index_body = {
-            "settings": {
-                "number_of_shards": 5,  # Adjust number of shards as needed
-                "number_of_replicas": 1
-            },
-            "mappings": {
-                "properties": {
-                    "pk_id": {"type": "integer"},
-                    "plot_embedding": {
-                        "type": "knn_vector",
-                        "dims": 1024  # Specify the actual dimension of your embedding
-                    }
-                }
-            }
-        }
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "pk_id": {
+        "type": "keyword"
+      },
+      "plot_embedding": {
+        "type": "knn_vector",
+        "dimension": 1024,
+        "method": {
+          "engine": "nmslib",
+          "space_type": "cosinesimil",
+          "name": "hnsw",
+          "parameters": {"ef_construction": 512, "m": 16},
+        },
+      }
+    }
+  }
+}
         try:
             response = opensearch_client.indices.create(index=index_name, body=index_body)
             logger.info(f"Index '{index_name}' created with response: {response}")
@@ -116,7 +131,7 @@ for count, row in enumerate(rows, start=1):
                 "plot_embedding": embedding
             }
             opensearch_client.index(index=INDEX_NAME, body=document)
-            logger.info(f"Indexed document with primary key {primary_key}.")
+            # logger.info(f"Indexed document with primary key {primary_key}.")
         except Exception as e:
             logger.error(f"Failed to process row {count}: {e}")
     else:
