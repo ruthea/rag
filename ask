@@ -112,4 +112,4 @@ print("\nYour input:")
 print(input_text)
 run_query(question_embedding)
 
-# More code written below to take the returned PK's and lookup source data data to be included in the prompt to answer the question
+
