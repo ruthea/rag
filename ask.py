@@ -1,3 +1,4 @@
+import argparse
 import boto3
 import json
 from opensearchpy import OpenSearch, RequestsHttpConnection
@@ -5,7 +6,6 @@ from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from utils.embedding import get_embedding
 from utils.secrets import get_secrets
-
 
 
 index_name = "movies-embedding-234"
@@ -75,15 +75,14 @@ def run_query(query_embedding):
     # Return the comma-separated string
     return comma_separated_ids
 
-# Create a Bedrock Runtime client in the AWS Region of your choice.
-client=boto3.client("bedrock-runtime", region_name="us-east-1")
+input_text = "What movies are about veterans?"
+#  Parse command line arguments
+parser = argparse.ArgumentParser(description="Find similar movies based on text input.")
+parser.add_argument("text", nargs="?", type=str, default=input_text,
+                    help="Text to search for similar movies (default: movies that have veterans)")
+args = parser.parse_args()
 
-# Set the model ID, e.g., Titan Text Embeddings V2.
-
-# this is the primary key that should be stored as another attribute with the embedding in opensearch
-
-# The text to convert to an embedding we would want to store in opensearch
-input_text = "movies that have veterans"
+input_text = args.text
 
 question_embedding = get_embedding(input_text)
 
