@@ -1,26 +1,16 @@
-# Generate and print an embedding with Amazon Titan Text Embeddings V2.
-
 import boto3
 import json
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
+from utils.embedding import get_embedding
+from utils.secrets import get_secrets
+
+
 
 index_name = "movies-embedding-234"
-model_id = "amazon.titan-embed-text-v2:0"
-
-
-bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")
-model_id = "amazon.titan-embed-text-v2:0"
-
-# Load secrets from your secrets management file or environment variables
-def get_secrets(secrets_file='secrets.txt'):
-    secrets = {}
-    with open(secrets_file, 'r') as file:
-        for line in file:
-            key, value = line.strip().split('=', 1)
-            secrets[key.strip()] = value.strip()
-    return secrets
+KEYSPACE = 'movies'
+TABLE = 'movies'
 
 # Load secrets from the secrets.txt file
 secrets = get_secrets()
@@ -59,24 +49,10 @@ opensearch_client = OpenSearch(
     connection_class=RequestsHttpConnection
 )
 
-def get_embedding_from_titan(text):
-    # Prepare request for Titan
-    native_request = {"inputText": text}
-    request = json.dumps(native_request)
-
-    # Invoke Titan model for text embedding
-    response = bedrock_client.invoke_model(modelId=model_id, body=request)
-
-    # Parse the response
-    response_body = json.loads(response.get("body").read())
-    embedding = response_body["embedding"]
-    print(embedding)
-
-    return embedding
 
 def run_query(query_embedding):
     query = {
-        "size": 250,
+        "size": 5,
         "_source": ["pk_id"],  # Specify fields to return
         "query": {
             "knn": {
@@ -89,12 +65,15 @@ def run_query(query_embedding):
     }
 
     response = opensearch_client.search(index=index_name, body=query)
-    print(response['hits'])
-    # Process and print the results
     # for hit in response['hits']['hits']:
-    #     print(f"Show ID: {hit['_source']['show_id']}, Embedding: {hit['_source'].get('embedding')}")
-    # response = opensearch_client.search(index=index_name, body=query)
+    #   print(f"Show ID: {hit['_source']['pk_id']}")
 
+    pk_id_list = [hit['_source']['pk_id'] for hit in response['hits']['hits']]
+    comma_separated_ids = ','.join(str(pk_id) for pk_id in pk_id_list)
+
+
+    # Return the comma-separated string
+    return comma_separated_ids
 
 # Create a Bedrock Runtime client in the AWS Region of your choice.
 client=boto3.client("bedrock-runtime", region_name="us-east-1")
@@ -106,10 +85,14 @@ client=boto3.client("bedrock-runtime", region_name="us-east-1")
 # The text to convert to an embedding we would want to store in opensearch
 input_text = "movies that have veterans"
 
-question_embedding = get_embedding_from_titan(input_text)
+question_embedding = get_embedding(input_text)
 
 print("\nYour input:")
 print(input_text)
-run_query(question_embedding)
+hits_pk = run_query(question_embedding)
 
-
+# Use f-string to include hits_pk in the SQL query
+sql_query = f"SELECT title FROM {KEYSPACE}.{TABLE} WHERE id IN ({hits_pk})"
+rows = session.execute(sql_query)
+for row in rows:
+    print(row.title)
