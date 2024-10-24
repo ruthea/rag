@@ -3,6 +3,10 @@ import boto3
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from opensearchpy import OpenSearch, RequestsHttpConnection
+from utils.embedding import get_embedding
+from utils.secrets import get_secrets
+
+
 import logging
 
 # Keyspace and table configuration
@@ -15,16 +19,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 logger.addHandler(handler)
-
-# Load secrets from your secrets management file or environment variables
-def get_secrets(secrets_file='secrets.txt'):
-    """Load secrets from a given file."""
-    secrets = {}
-    with open(secrets_file, 'r') as file:
-        for line in file:
-            key, value = line.strip().split('=', 1)
-            secrets[key.strip()] = value.strip()
-    return secrets
 
 # Load secrets
 secrets = get_secrets()
@@ -58,16 +52,6 @@ opensearch_client = OpenSearch(
 )
 
 # AWS Bedrock Setup (Amazon Titan Text Embeddings V2)
-bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")
-MODEL_ID = "amazon.titan-embed-text-v2:0"
-
-def get_embedding_from_titan(text):
-    """Get embeddings from Amazon Titan for a given text."""
-    #logger.info("Generating embedding for text: %s", text)
-    request = json.dumps({"inputText": text})
-    response = bedrock_client.invoke_model(modelId=MODEL_ID, body=request)
-    model_response = json.loads(response["body"].read())
-    return model_response["embedding"]
 
 ### MATCH THE SETTINGS TO YOUR OPENSEARCH SERVER!!!
 def create_index_if_not_exists(index_name):
@@ -127,7 +111,7 @@ for count, row in enumerate(rows, start=1):
 
     if plot_text:
         try:
-            embedding = get_embedding_from_titan(plot_text)
+            embedding = get_embedding(plot_text)
             document = {
                 "pk_id": primary_key,
                 "plot_embedding": embedding
