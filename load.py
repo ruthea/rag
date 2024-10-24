@@ -69,13 +69,15 @@ def get_embedding_from_titan(text):
     model_response = json.loads(response["body"].read())
     return model_response["embedding"]
 
+### MATCH THE SETTINGS TO YOUR OPENSEARCH SERVER!!!
 def create_index_if_not_exists(index_name):
     """Create the index if it doesn't exist."""
     if not opensearch_client.indices.exists(index=index_name):
         index_body = {
   "settings": {
     "number_of_shards": 1,
-    "number_of_replicas": 1
+    "number_of_replicas": 1,
+    "index.knn": True
   },
   "mappings": {
     "properties": {
