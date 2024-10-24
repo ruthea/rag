@@ -7,6 +7,9 @@ from cassandra.cluster import Cluster
 from utils.embedding import get_embedding
 from utils.secrets import get_secrets
 
+bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+prompt = "Instruction: Please answer the question by the user. The response should be professional and kind. Use only the data provided in the Context. If you can't answer the question with the context provided merely say that you can't help with that one. Movie titles listed should each be in a new line with a bullet."
 
 index_name = "movies-embedding-234"
 KEYSPACE = 'movies'
@@ -75,6 +78,45 @@ def run_query(query_embedding):
     # Return the comma-separated string
     return comma_separated_ids
 
+def get_movie_titles(comma_separated_ids):
+    """
+    Retrieves movie titles based on a comma-separated string of IDs.
+
+    Args:
+        comma_separated_ids (str): A comma-separated string of movie IDs.
+
+    Returns:
+        list: A list of movie titles.
+    """
+
+    sql_query = f"SELECT title FROM {KEYSPACE}.{TABLE} WHERE id IN ({comma_separated_ids})"
+    rows = session.execute(sql_query)
+    movie_titles = [row.title for row in rows]
+
+    return movie_titles
+
+def ask_question(question, model_id):
+  """
+  Asks a question to a Bedrock LLM.
+
+  Args:
+      question (str): The question to ask.
+      model_id (str): The ID of the Bedrock model to use.
+
+  Returns:
+      str: The response from the LLM.
+  """
+
+  bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+  native_request = {"inputText": question}
+  request = json.dumps(native_request)
+
+  response = bedrock_client.invoke_model(modelId=model_id, body=request)
+  response_body = json.loads(response.get("body").read())
+  return response_body['results'][0]['outputText']
+
+
 input_text = "What movies are about veterans?"
 #  Parse command line arguments
 parser = argparse.ArgumentParser(description="Find similar movies based on text input.")
@@ -86,12 +128,17 @@ input_text = args.text
 
 question_embedding = get_embedding(input_text)
 
-print("\nYour input:")
+print("\nYour Question:")
 print(input_text)
 hits_pk = run_query(question_embedding)
+movie_titles = get_movie_titles(hits_pk)
 
-# Use f-string to include hits_pk in the SQL query
-sql_query = f"SELECT title FROM {KEYSPACE}.{TABLE} WHERE id IN ({hits_pk})"
-rows = session.execute(sql_query)
-for row in rows:
-    print(row.title)
+# Get movie titles based on retrieved IDs
+movie_titles = get_movie_titles(hits_pk)
+
+# Construct the RAG prompt with retrieved titles as context
+context = "\n".join(movie_titles)  # Join titles with newlines for readability
+
+full_prompt = f"{prompt}\nContext:\n{context}"
+answer = ask_question(full_prompt,"amazon.titan-text-lite-v1")
+print(f"\nAnswer: {answer}")
