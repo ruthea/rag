@@ -1,8 +1,11 @@
 # Import libraries
 import numpy as np
-
+import logging
 from usearch.index import Index, Matches
 from sentence_transformers import SentenceTransformer
+from cassandra.auth import PlainTextAuthProvider
+from cassandra.cluster import Cluster
+from utils.secrets import get_secrets
 
 sentence = "I like movies about puppies and dogs."
 
@@ -10,9 +13,6 @@ model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 embedding_matcher = model.encode(sentence)
 
 index = Index(ndim=embedding_matcher.shape[0])
-
-
-import logging
 
 # Keyspace and table configuration
 KEYSPACE = 'movies'
@@ -60,7 +60,7 @@ for count, row in enumerate(rows, start=1):
 
     if plot_text:
         try:
-            embedding = get_embedding(plot_text)
+            embedding = model.encode(plot_text)
             addToIndex(primary_key, embedding)
         except Exception as e:
             logger.error(f"Failed to process row {count}: {e}")
