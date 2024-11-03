@@ -19,34 +19,23 @@ def addToIndex(pk,text):
 print("Creating Index...")
 
 
-print("Adding to Index...")
-pk=1
-# Add the text and its embedding to the index
-sentence = "Fighter Pilots have incredible stamina"
-sentence_embedding = model.encode(sentence)
-addToIndex(pk,sentence_embedding)
+# Fetch rows from ScyllaDB and generate embeddings
+rows = session.execute(f"SELECT id, Plot FROM {KEYSPACE}.{TABLE}")
 
-pk=pk+1
-sentence = "This is a dog and cat movie thats really funny"
-sentence_embedding = model.encode(sentence)
-addToIndex(pk,sentence_embedding)
+for count, row in enumerate(rows, start=1):
+    plot_text = row.plot
+    primary_key = row.id
 
-pk=pk+1
-sentence = "I love the hockey game"
-sentence_embedding = model.encode(sentence)
-addToIndex(pk,sentence_embedding)
+    if plot_text:
+        try:
+            embedding = get_embedding(plot_text)
+            addToIndex(primary_key, embedding)
+        except Exception as e:
+            logger.error(f"Failed to process row {count}: {e}")
+    else:
+        logger.warning(f"No plot text for primary key {primary_key}.")
 
-pk=pk+1
-sentence = "Golden retrievers when small have very sharp teeth and the cutest breath"
-sentence_embedding = model.encode(sentence)
-addToIndex(pk,sentence_embedding)
-
-vector = embedding_matcher
-matches: Matches = index.search(embedding_matcher, 4)
-
-for match in matches:
-    print(match.key, '{:.5f}'.format(match.distance))
-print()
+logger.info("Data processing complete!")
 
 index.save("my_index.usearch")
 
