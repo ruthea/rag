@@ -11,6 +11,38 @@ embedding_matcher = model.encode(sentence)
 
 index = Index(ndim=embedding_matcher.shape[0])
 
+
+import logging
+
+# Keyspace and table configuration
+KEYSPACE = 'movies'
+TABLE = 'movies'
+INDEX_NAME = "movies-embedding-234"
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+logger.addHandler(handler)
+
+# Load secrets
+secrets = get_secrets()
+
+# Validate ScyllaDB connection details
+scylla_hosts = secrets.get("SCYLLADB_HOSTS")
+if not scylla_hosts:
+    raise ValueError("SCYLLADB_HOSTS is missing or empty in the secrets file.")
+
+SCYLLADB_HOSTS = scylla_hosts.split(",")
+SCYLLA_USERNAME = secrets.get("SCYLLA_USERNAME")
+SCYLLA_PASSWORD = secrets.get("SCYLLA_PASSWORD")
+
+# ScyllaDB Connection Setup
+auth_provider = PlainTextAuthProvider(username=SCYLLA_USERNAME, password=SCYLLA_PASSWORD)
+cluster = Cluster(SCYLLADB_HOSTS, auth_provider=auth_provider)
+session = cluster.connect()
+
+
 def addToIndex(pk,text):
     index.add(pk, text)
     print("added index")
