@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 # Load secrets
 secrets = get_secrets()
-INDEX_NAME = "anand"
+INDEX_NAME = "movies-embedding-234"
 
 
 # Validate ScyllaDB connection details
@@ -46,13 +46,13 @@ def embed():
     print("movie plot is " + embed_request['plot'])
 
     print('embedding movie')
-    embedding = get_embedding(plot_text)
+    embedding = get_embedding(embed_request['plot'])
     document = {
                 "pk_id": embed_request['id'],
                 "plot_embedding": embedding
             }
     opensearch_client.index(index=INDEX_NAME, body=document)
- 
+
 
     error = None
     return {
