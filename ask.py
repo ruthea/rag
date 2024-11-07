@@ -6,6 +6,7 @@ from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from utils.embedding import get_embedding
 from utils.secrets import get_secrets
+import sys
 
 bedrock_client = boto3.client("bedrock-runtime", region_name="us-east-1")
 
@@ -116,29 +117,85 @@ def ask_question(question, model_id):
   response_body = json.loads(response.get("body").read())
   return response_body['results'][0]['outputText']
 
+def modify_a_movie(movie_id, movie_plot):
+  """
+  Modify a movie.
 
-input_text = "What movies are about veterans?"
+  Args:
+      movie_id (str): Id of the movie to modify
+      movie_plot (str): Plot of the movie 
+
+  """
+  sql_query = f"UPDATE  {KEYSPACE}.{TABLE} set plot='{movie_plot}' where id={movie_id}"
+  print(sql_query)
+  session.execute(sql_query)
+  return
+
+
+def add_a_movie(movie_id, movie_title, movie_plot):
+  """
+  Adds a movie.
+
+  Args:
+      movie_id (str): Id of the movie to add
+      movie_title (str): Title of the movie
+      movie_plot (str): Plot of the movie 
+
+  """
+  sql_query = f"INSERT INTO  {KEYSPACE}.{TABLE}(id, title, plot) values({movie_id},'{movie_title}','{movie_plot}')"
+  print(sql_query)
+  session.execute(sql_query)
+  return
+
+input_text = "What movies are about history?"
 #  Parse command line arguments
 parser = argparse.ArgumentParser(description="Find similar movies based on text input.")
 parser.add_argument("text", nargs="?", type=str, default=input_text,
                     help="Text to search for similar movies (default: movies that have veterans)")
 args = parser.parse_args()
 
-input_text = args.text
 
-question_embedding = get_embedding(input_text)
+id_top = 99999999
+while True:
+    options = "1: Add a Movie \n2: Modify a plot\n3: Explore by plot \n4: Quit"
+    print(options)
+    option = input("Choose an option: ")
 
-print("\nYour Question:")
-print(input_text)
-hits_pk = run_query(question_embedding)
-movie_titles = get_movie_titles(hits_pk)
 
-# Get movie titles based on retrieved IDs
-movie_titles = get_movie_titles(hits_pk)
+    if option == '4':
+        print("Goodbye!")
+        sys.exit(0)
+    elif option == '1':
+        id_top = id_top - 1
+        movie_name = input("Provide the Movie title: ")
+        movie_plot = input("Provide the Movie plot: ")
+        add_a_movie(id_top, movie_name, movie_plot)
+    elif option == '2':
+        movie_id = input("Provide the Movie Id: ")
+        movie_plot = input("Provide the Movie plot: ")
+        modify_a_movie(movie_id, movie_plot)
+    else :
+        input_text = input("Choose a topic: ")
+        # get embedding from bedrock
+        question_embedding = get_embedding(input_text)
 
-# Construct the RAG prompt with retrieved titles as context
-context = "\n".join(movie_titles)  # Join titles with newlines for readability
+        print("\nYour Question:")
+        print(input_text)
+        # do vector search against OpenSearch
+        hits_pk = run_query(question_embedding)
+        movie_titles = get_movie_titles(hits_pk)
 
-full_prompt = f"{prompt}\nContext:\n{context}"
-answer = ask_question(full_prompt,"amazon.titan-text-lite-v1")
-print(f"\nAnswer: {answer}")
+        # Get movie titles based on retrieved IDs
+        movie_titles = get_movie_titles(hits_pk)
+
+        # Construct the RAG prompt with retrieved titles as context
+        context = "\n".join(movie_titles)  # Join titles with newlines for readability
+
+        full_prompt = f"{prompt}\nContext:\n{context}"
+        answer = ask_question(full_prompt,"amazon.titan-text-lite-v1")
+        print(f"\nAnswer: {answer}")
+
+
+    # add
+    # modify (new language)
+    # delete
