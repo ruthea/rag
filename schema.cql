@@ -45,6 +45,5 @@ CREATE TABLE movies.movies (
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
-    AND speculative_retry = '99.0PERCENTILE';
-
-cdc = {'delta': 'full', 'enabled': 'true', 'postimage': 'false', 'preimage': 'false', 'ttl': '86400'}
+    AND speculative_retry = '99.0PERCENTILE' and 
+    cdc = {'delta': 'full', 'enabled': 'true', 'postimage': 'false', 'preimage': 'false', 'ttl': '86400'};
